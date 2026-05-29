@@ -33,18 +33,23 @@ default_origins = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
 ]
+def _clean_env_value(value: str) -> str:
+    return value.strip().strip("`'\"").rstrip("/")
+
+
 configured_origins = [
-    origin.strip().rstrip("/")
+    _clean_env_value(origin)
     for origin in os.getenv("CORS_ORIGINS", "").split(",")
-    if origin.strip()
+    if _clean_env_value(origin)
 ]
-frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+frontend_url = _clean_env_value(os.getenv("FRONTEND_URL", ""))
 origins = default_origins + configured_origins + ([frontend_url] if frontend_url else [])
+cors_allow_origin_regex = _clean_env_value(os.getenv("CORS_ALLOW_ORIGIN_REGEX", ""))
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=os.getenv("CORS_ALLOW_ORIGIN_REGEX") or None,
+    allow_origin_regex=cors_allow_origin_regex or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,6 +77,16 @@ async def health_check():
     return {
         "status": "healthy",
         "message": "API is running"
+    }
+
+
+@app.get("/debug/cors")
+async def debug_cors():
+    """Show active CORS settings without exposing secrets."""
+    return {
+        "origins": origins,
+        "allow_origin_regex": cors_allow_origin_regex,
+        "frontend_url": frontend_url,
     }
 
 
